@@ -46,7 +46,7 @@ int log_stdout(uint i) {
     //* Your code here
 
     if (i != 0) {
-        // Calculate the number of digits in 'number' to determine the file name length
+        // Calculate the number of digits in 'i' to determine the file name length
         uint digits = 0;
         uint tempNumber = i;
         while (tempNumber != 0) {
@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
         exit(1);
     }
 
-    // Pay attention to the order of function calls: first log_stdout, then read_stdin, and final printf
+    // Pay attention to the order of function calls: first log_stdout, then read_stdin, and finally printf
 
     if (log_stdout(atoi(argv[1])) != 0) {
         fprintf(2, "log_stdout: log_stdout failed\n"); 

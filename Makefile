@@ -189,7 +189,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_log_stdout\
-	# $U/_composites\
+	$U/_composites\
 	# $U/_xargs\
 
 
