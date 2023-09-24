@@ -78,7 +78,7 @@ void sub_process(int p_left[2], int i) {
 
         printf("prime %d\n", prime);
 
-        // NOTE: 和TA顺序不同
+        // FIXME: 和TA顺序不同
         //* Use pipe and fork to recursively set up and run the next sub_process if necessary
 
         pipe(p_right); // FIXME: pipe从循环中移除，但是改变了代码结构
@@ -90,6 +90,7 @@ void sub_process(int p_left[2], int i) {
             fprintf(2, "sub_process: fork failed\n");
         } else if (pid == 0) { 
             // 子进程筛选下一批素数
+            // FIXME: 当然不能这么判断啊！！！
             if (prime != 31){
                 sub_process(p_right, ++i); //  写在前面但不一定在前面执行，需要等待父进程的数据写进管道
             }
