@@ -66,7 +66,7 @@ int main(int argc, char* argv[]) {
                     wait(0);
                 }
                 
-            } else if (buf[idx] == ' ') {
+            } else if (buf[idx] == ' ') { // NOTE: 其实可以不用判断空格
 
                 line_data[data_pos++] = 0;
                 arguments[arg_pos++] = line_arg;

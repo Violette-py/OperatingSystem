@@ -78,63 +78,51 @@ void sub_process(int p_left[2], int i) {
 
     printf("prime %d\n", prime);
 
-    pipe(p_right); // FIXME: pipe从循环中移除，但是改变了代码结构
     // close(p_right[0]); 
 
     while (1) {
         //* m = get a number from left neighbor
         num_read = read(p_left[0], &m, sizeof(m));
-        // End
-
-        //* Use pipe and fork to recursively set up and run the next sub_process if necessary
-
+        
         // NOTE: 用守卫条件来做，否则无法保持TA代码的完整性
         if (num_read <= 0) {
             close(p_left[0]);  // NOTE: 关闭左读
-            // close(0); // 递归出口：若父进程无数据传递，则说明已经到最后一层，可以结束筛查了 // FIX: 不会有并发的问题吗？
+            close(0); // 递归出口：若父进程无数据传递，则说明已经到最后一层，可以结束筛查了 // FIX: 不会有并发的问题吗？
             break;
         }
 
+        //* Use pipe and fork to recursively set up and run the next sub_process if necessary
+
+        pipe(p_right); 
+
         pid = fork();
 
-        // if (pid < 0) {
-        //     fprintf(2, "sub_process: fork failed\n");
-        // } else 
-        if (pid == 0) { 
+        if (pid < 0) {
+            fprintf(2, "sub_process: fork failed\n");
+        } else if (pid == 0) { 
             // 子进程筛选下一批素数
-            sub_process(p_right, i++); //  写在前面但不一定在前面执行，需要等待父进程的数据写进管道
-            // break;
+            sub_process(p_right, ++i); //  写在前面但不一定在前面执行，需要等待父进程的数据写进管道
         } else {
 
             close(p_right[0]); // NOTE: 关闭右读
 
-        // FIXME: End 没有按照TA的代码规范来？
-
             if (m % prime != 0) {
                 //* send m to right neighbor
-                // close(p_right[0]);
                 write(p_right[1], &m, sizeof(m));
-                
                 // close(p_right[1]);
-
-                // End
             }
             else {
                 printf("composite %d\n", m);
             }
-
         }
-        
-       
     }
     
     //* Once the write-side of left neighbor is closed, it should wait until the entire pipeline terminates, including all children, grandchildren, &c.
     
     close(p_right[1]);  // NOTE: 关闭右写
-    
-    wait(0);
-    // End
+    close(0);
 
+    wait(0);
     exit(0);
 }
 

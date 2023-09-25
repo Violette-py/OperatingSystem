@@ -61,63 +61,26 @@ void sub_process(int p_left[2], int i) {
         fprintf(2, "composites: log_stdout %d failed\n", i);
         exit(1);
     }
-    char m, prime;  
+    char m, prime;
     int num_read, p_right[2], pid = 0;
-
-    //* prime = get a number from left neighbor
-
-    // when there's only 1 number at a certain level, the pipeline reaches the end and will not pass data to the next level
-    close(p_left[1]);  
-    read(p_left[0], &prime, sizeof(prime)); 
+    // prime = get a number from left neighbor
+    // End
     printf("prime %d\n", prime);
-
     while (1) {
-
-        //* m = get a number from left neighbor
-        num_read = read(p_left[0], &m, sizeof(m));
-
-        // reach the end
-        if(num_read <= 0) {
-            close(p_left[0]);
-            break;
+        // m = get a number from left neighbor
+        // End
+        // Use pipe and fork to recursively set up and run the next sub_process if necessary
+        // End
+        if (m % prime != 0) {
+            // send m to right neighbor
+            // End
         }
-
-        //* Use pipe and fork to recursively set up and run the next sub_process if necessary
-
-        pipe(p_right); 
-        // close(p_right[0]); // BUG
-
-        pid = fork();
-
-        if (pid < 0) {
-            fprintf(2, "sub_process: fork failed\n");
-            exit(1);
-        } else if (pid == 0) { 
-            // The chile process filters the next branch of prime numbers
-            sub_process(p_right, ++i);
-        } else {
-
-            close(p_right[0]);
-
-            while (num_read > 0) {
-                if (m % prime != 0) {
-                    //* send m to right neighbor
-                    write(p_right[1], &m, sizeof(m)); 
-                }
-                else {
-                    printf("composite %d\n", m);
-                }
-                num_read = read(p_left[0], &m, sizeof(m));
-
-            }        
-
-            //* Once the write-side of left neighbor is closed, it should wait until the entire pipeline terminates, including all children, grandchildren, &c.
-            close(p_right[1]); 
-            close(0);
-            wait(0);
-            break;
+        else {
+            printf("composite %d\n", m);
         }
     }
+    // Once the write-side of left neighbor is closed, it should wait until the entire pipeline terminates, including all children, grandchildren, &c.
+    // End
     exit(0);
 }
 
@@ -145,38 +108,12 @@ void composites() {
         - (void)
     */
     int p_right[2], pid, i = 0;
-    
-    //* Use pipe and fork to recursively set up and run the first sub_process
-
-    pipe(p_right);
-
-    pid = fork();
-
-    if (pid < 0) {
-        fprintf(2, "composites: fork failed\n");
-    } else if (pid == 0) {
-        // close(p_right[1]);
-        sub_process(p_right, i);
-    } else {
-        
-        //* The first process feeds the numbers 2 through 35 into the pipeline.
-
-        // close unnecessary file descriptors
-        close(p_right[0]);  
-
-        // generate the numeric sequence and feed them into pipeline
-        char start = 2;
-        char end = 35;
-        for (char idx = start; idx <= end; idx++) {  
-            write(p_right[1], &idx, 1);  // add error test
-        }
-
-        close(p_right[1]);
-
-        //* Once the first process reaches 35, it should wait until the entire pipeline terminates, including all children, grandchildren, &c. Thus the main primes process should only exit after all the output has been printed, and after all the other primes processes have exited.
-        // parent waits for child, child waits for grandchild -> parent waits for all its offspring
-        wait(0); 
-    }
+    // Use pipe and fork to recursively set up and run the first sub_process
+    // End
+    // The first process feeds the numbers 2 through 35 into the pipeline.
+    // End
+    // Once the first process reaches 35, it should wait until the entire pipeline terminates, including all children, grandchildren, &c. Thus the main primes process should only exit after all the output has been printed, and after all the other primes processes have exited.
+    // End
     exit(0);
 }
 
