@@ -61,80 +61,26 @@ void sub_process(int p_left[2], int i) {
         fprintf(2, "composites: log_stdout %d failed\n", i);
         exit(1);
     }
-    char m, prime;  // NOTE: 数据以char类型传递
+    char m, prime;
     int num_read, p_right[2], pid = 0;
-
-    //* prime = get a number from left neighbor
-
-    close(p_left[1]);  // NOTE: 关闭左写
-    num_read = read(p_left[0], &prime, sizeof(prime));
-    // no data to be passed -- reach an end
-    if (num_read <= 0) {
-        close(p_left[0]);
-        close(0);
-        exit(0);
-    }
+    // prime = get a number from left neighbor
     // End
-
     printf("prime %d\n", prime);
-
-    pipe(p_right); // FIXME: pipe从循环中移除，但是改变了代码结构
-    // close(p_right[0]); 
-
     while (1) {
-        //* m = get a number from left neighbor
-        num_read = read(p_left[0], &m, sizeof(m));
+        // m = get a number from left neighbor
         // End
-
-        //* Use pipe and fork to recursively set up and run the next sub_process if necessary
-
-        // NOTE: 用守卫条件来做，否则无法保持TA代码的完整性
-        if (num_read <= 0) {
-            close(p_left[0]);  // NOTE: 关闭左读
-            // close(0); // 递归出口：若父进程无数据传递，则说明已经到最后一层，可以结束筛查了 // FIX: 不会有并发的问题吗？
-            break;
+        // Use pipe and fork to recursively set up and run the next sub_process if necessary
+        // End
+        if (m % prime != 0) {
+            // send m to right neighbor
+            // End
         }
-
-        pid = fork();
-
-        // if (pid < 0) {
-        //     fprintf(2, "sub_process: fork failed\n");
-        // } else 
-        if (pid == 0) { 
-            // 子进程筛选下一批素数
-            sub_process(p_right, i++); //  写在前面但不一定在前面执行，需要等待父进程的数据写进管道
-            // break;
-        } else {
-
-            close(p_right[0]); // NOTE: 关闭右读
-
-        // FIXME: End 没有按照TA的代码规范来？
-
-            if (m % prime != 0) {
-                //* send m to right neighbor
-                // close(p_right[0]);
-                write(p_right[1], &m, sizeof(m));
-                
-                // close(p_right[1]);
-
-                // End
-            }
-            else {
-                printf("composite %d\n", m);
-            }
-
+        else {
+            printf("composite %d\n", m);
         }
-        
-       
     }
-    
-    //* Once the write-side of left neighbor is closed, it should wait until the entire pipeline terminates, including all children, grandchildren, &c.
-    
-    close(p_right[1]);  // NOTE: 关闭右写
-    
-    wait(0);
+    // Once the write-side of left neighbor is closed, it should wait until the entire pipeline terminates, including all children, grandchildren, &c.
     // End
-
     exit(0);
 }
 
@@ -162,35 +108,12 @@ void composites() {
         - (void)
     */
     int p_right[2], pid, i = 0;
-    
-    //* Use pipe and fork to recursively set up and run the first sub_process
-
-    pipe(p_right);
-
-    pid = fork();
-
-    if (pid < 0) {
-        fprintf(2, "composites: fork failed\n");
-    } else if (pid == 0) {
-        // close(p_right[1]);
-        sub_process(p_right, i);
-    } else {
-        
-        //* The first process feeds the numbers 2 through 35 into the pipeline.
-
-        close(p_right[0]);
-
-        char start = 2;
-        char end = 35;
-        for (char idx = start; idx <= end; idx++) {  // NOTE: idx-char
-            write(p_right[1], &idx, 1);  // add error test
-        }
-
-        close(p_right[1]);
-
-        //* Once the first process reaches 35, it should wait until the entire pipeline terminates, including all children, grandchildren, &c. Thus the main primes process should only exit after all the output has been printed, and after all the other primes processes have exited.
-        wait(0); // 只要我等儿子，儿子等孙子，这样就能实现祖祖辈辈的等待
-    }
+    // Use pipe and fork to recursively set up and run the first sub_process
+    // End
+    // The first process feeds the numbers 2 through 35 into the pipeline.
+    // End
+    // Once the first process reaches 35, it should wait until the entire pipeline terminates, including all children, grandchildren, &c. Thus the main primes process should only exit after all the output has been printed, and after all the other primes processes have exited.
+    // End
     exit(0);
 }
 
