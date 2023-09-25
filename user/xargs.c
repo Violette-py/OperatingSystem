@@ -6,76 +6,77 @@ and it runs the command for each line,
 appending the line to the command's arguments. 
 Your solution should be in the file user/xargs.c.
  */
-// FIXME: 每个库具体的作用是什么？用在了哪里？
 #include "kernel/types.h"
-#include "kernel/stat.h"
-#include "kernel/fcntl.h"
+#include "kernel/param.h" // where declares the max exec arguments MAXARG
 #include "user/user.h"
-#include <stdarg.h>
-
-#include<kernel/param.h>
-
-char buf[1024];
 
 int main(int argc, char* argv[]) {
 
-    int flag = 1;
+    // argv[]: xargs command param1 param2 ...
 
-    while(flag) {
-
-         //* 从标准输入读入数据
-        int input_size = read(0, buf, sizeof(buf));
-
-        //* 将数据分行存储
-
-        // 由于 C语言 不支持动态数组，故需要先统计行数
-        int line = 0;
-        for (int i = 0; i < input_size ; i++) {
-            if (buf[i] == '\n') {
-                line++;
-            }
-        }
-
-        char input_data[line][MAXARG]; // param.h中提示，命令参数最长为32字符
-
-        for (int i = 0, j = 0, m = 0; m < input_size; m++) {
-            if (buf[m] == '\n') {
-                input_data[i][j] = '\0';
-                i++;
-                j = 0;
-            } else {
-                input_data[i][j++] = buf[m];
-            }
-        }
-
-        //* 将数据分行拼接到 argv[2]后，并运行 // argv[0]是 xargs自身，argv[1]是 指定命令，且后续可能还有其余参数 -- 由argc确定
-        //  示例 1：$ echo hello too | xargs echo bye -- 输出：bye hello too 【end】
-        //  示例 2：$ xargs cat \n -- 会无限循环读入参数然后执行
-
-        char* argument[MAXARG];
-        int j;
-        for (j = 0; j < argc - 1; j++) {
-            argument[j] = argv[j+1];
-        }
-
-        for (int i = 0; i < line; i++) {
-            argument[j] = input_data[i];
-
-            if (fork() == 0) {
-                exec(argv[1], argument);
-                exit(0);
-            } else {
-                wait(0);
-
-                if(argc > 2) {
-                    flag = 0;
-                }
-
-            }
-        }
-
+    //* check the number of arguments
+    if (argc < 2) {
+        fprintf(2, "Usage: xargs minimum number of args is 2\n");
+        exit(1);
+    } else if (argc - 1 >= MAXARG){
+        fprintf(2, "Usage: xargs maximum number of args is %d\n", MAXARG);
+        exit(1);
     }
 
-   
+    //* extract the command and the original arguments
+    char* arguments[MAXARG];
+    int arg_pos;
+    for (arg_pos = 0; arg_pos < argc - 1; arg_pos++) {
+        arguments[arg_pos] = argv[arg_pos+1]; // command param1 param2 ...
+    }
+
+    char buf[1024]; // data readed from standard input
+    int input_size;
+
+    char line_data[MAXARG]; // parse the input data of each line (seperate by '\n')
+    char *line_arg = line_data;
+    int data_pos = 0;
+
+    //* read lines from the standard input and execute immediately in a loop
+    while ( (input_size = read(0, buf, sizeof(buf))) ) {
+
+        for (int idx = 0; idx < input_size; idx++) {
+
+            if (buf[idx] == '\n') {
+
+                line_data[data_pos] = 0; // end of a string
+                arguments[arg_pos++] = line_arg; // append the input line to the command's arguments
+
+                // reset the variables
+                line_arg = line_data;
+                data_pos = 0;
+                arguments[arg_pos] = 0;
+                arg_pos = argc -1;
+
+                // run the command in the child process & wait in the parent process
+                int pid = fork();
+                if (pid < 0) {
+                    fprintf(2, "xargs: fork failed\n");
+                } else if (pid == 0) {
+                    exec(argv[1], arguments); 
+                    fprintf(2, "xargs: exec failed\n");  // exec only returns if error occurs
+                } else {
+                    wait(0);
+                }
+                
+            } else if (buf[idx] == ' ') {
+
+                line_data[data_pos++] = 0;
+                arguments[arg_pos++] = line_arg;
+                line_arg = &line_data[data_pos];
+
+            } else {
+
+                line_data[data_pos++] = buf[idx];
+
+            }
+        }
+    }
+
     exit(0);
 }
