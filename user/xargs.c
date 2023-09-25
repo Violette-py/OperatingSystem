@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
         arguments[arg_pos] = argv[arg_pos+1]; // command param1 param2 ...
     }
 
-    char buf[1024]; // data readed from standard input
+    char buf[1024]; // data readed from the standard input
     int input_size;
 
     char line_data[MAXARG]; // parse the input data of each line (seperate by '\n')
@@ -46,20 +46,22 @@ int main(int argc, char* argv[]) {
 
                 line_data[data_pos] = 0; // end of a string
                 arguments[arg_pos++] = line_arg; // append the input line to the command's arguments
+                arguments[arg_pos] = 0;
 
-                // reset the variables
+                // reset the location variables
                 line_arg = line_data;
                 data_pos = 0;
-                arguments[arg_pos] = 0;
                 arg_pos = argc -1;
 
                 // run the command in the child process & wait in the parent process
                 int pid = fork();
                 if (pid < 0) {
                     fprintf(2, "xargs: fork failed\n");
+                    exit(1);
                 } else if (pid == 0) {
                     exec(argv[1], arguments); 
-                    fprintf(2, "xargs: exec failed\n");  // exec only returns if error occurs
+                    fprintf(2, "xargs: exec failed\n");  // exec only returns when error occurs
+                    exit(1);
                 } else {
                     wait(0);
                 }
