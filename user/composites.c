@@ -4,7 +4,6 @@
 #include "user/user.h"
 #include <stdarg.h>
 
-
 int log_stdout(uint i) {
     /*
     Description: Redirect stdout to a log file named i.log.
@@ -85,8 +84,8 @@ void sub_process(int p_left[2], int i) {
 
         //* Use pipe and fork to recursively set up and run the next sub_process if necessary
 
-        pipe(p_right); // FIXME: pipe从循环中移除，但是改变了代码结构
-        // close(p_right[0]); 
+        pipe(p_right); 
+        // close(p_right[0]); // BUG - 会导致fork后的子进程中该端口也被关闭（对于子进程而言是左管道的读端口）
 
         pid = fork();
 
@@ -108,13 +107,12 @@ void sub_process(int p_left[2], int i) {
                 else {
                     printf("composite %d\n", m);
                 }
-
+                num_read = read(p_left[0], &m, sizeof(m));
             }        
 
             //* Once the write-side of left neighbor is closed, it should wait until the entire pipeline terminates, including all children, grandchildren, &c.
-        
-            close(p_right[1]);  // NOTE: 关闭右写
-            close(0);
+            close(p_right[1]); 
+            // close(0);
             wait(0);
             break;
         }
