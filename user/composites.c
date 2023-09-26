@@ -4,6 +4,7 @@
 #include "user/user.h"
 #include <stdarg.h>
 
+
 int log_stdout(uint i) {
     /*
     Description: Redirect stdout to a log file named i.log.
