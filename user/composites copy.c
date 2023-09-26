@@ -4,7 +4,6 @@
 #include "user/user.h"
 #include <stdarg.h>
 
-
 int log_stdout(uint i) {
     /*
     Description: Redirect stdout to a log file named i.log.
@@ -67,22 +66,19 @@ void sub_process(int p_left[2], int i) {
 
     //* prime = get a number from left neighbor
 
-    // when there's only 1 number at a certain level, the pipeline reaches the end and will not pass data to the next level
-    close(p_left[1]);  
-    read(p_left[0], &prime, sizeof(prime)); 
-    printf("prime %d\n", prime);
+    close(p_left[1]);  // NOTE: 关闭左写
 
-    while (1) {
+    num_read = read(p_left[0], &prime, sizeof(prime));
+    // no data to be passed -- reach an end
+    if (num_read <= 0) {
+        close(p_left[0]);
+        close(0);
+        exit(0);
+    } else {
 
-        //* m = get a number from left neighbor
-        num_read = read(p_left[0], &m, sizeof(m));
+        printf("prime %d\n", prime);
 
-        // reach the end
-        if(num_read <= 0) {
-            close(p_left[0]);
-            break;
-        }
-
+        // FIXME: 和TA顺序不同
         //* Use pipe and fork to recursively set up and run the next sub_process if necessary
 
         pipe(p_right); // FIXME: pipe从循环中移除，但是改变了代码结构
@@ -92,33 +88,50 @@ void sub_process(int p_left[2], int i) {
 
         if (pid < 0) {
             fprintf(2, "sub_process: fork failed\n");
-            exit(1);
         } else if (pid == 0) { 
-            // The chile process filters the next branch of prime numbers
-            sub_process(p_right, ++i);
+            // 子进程筛选下一批素数
+            // FIXME: 当然不能这么判断啊！！！
+            if (prime != 31){
+                sub_process(p_right, ++i); //  写在前面但不一定在前面执行，需要等待父进程的数据写进管道
+            }
+            // break;
         } else {
 
-            close(p_right[0]);
+            close(p_right[0]); // NOTE: 关闭右读
 
-            while (num_read > 0) {
+        // FIXME: End 没有按照TA的代码规范来？
+
+            //* m = get a number from left neighbor
+            while (read(p_left[0], &m, sizeof(m))) {
+
                 if (m % prime != 0) {
                     //* send m to right neighbor
-                    write(p_right[1], &m, sizeof(m)); 
+                    // close(p_right[0]);
+                    write(p_right[1], &m, sizeof(m));
+                    
+                    // close(p_right[1]);
+
+                    // End
                 }
                 else {
                     printf("composite %d\n", m);
                 }
 
             }        
+            // close(p_left[0]); // NOTE: 关闭左读
 
             //* Once the write-side of left neighbor is closed, it should wait until the entire pipeline terminates, including all children, grandchildren, &c.
         
             close(p_right[1]);  // NOTE: 关闭右写
             close(0);
             wait(0);
-            break;
+            // End
         }
+
     }
+    // End
+
+    // wait(0);
     exit(0);
 }
 
@@ -175,8 +188,7 @@ void composites() {
         close(p_right[1]);
 
         //* Once the first process reaches 35, it should wait until the entire pipeline terminates, including all children, grandchildren, &c. Thus the main primes process should only exit after all the output has been printed, and after all the other primes processes have exited.
-        // parent waits for child, child waits for grandchild -> parent waits for all its offspring
-        wait(0); 
+        wait(0); // 只要我等儿子，儿子等孙子，这样就能实现祖祖辈辈的等待
     }
     exit(0);
 }
