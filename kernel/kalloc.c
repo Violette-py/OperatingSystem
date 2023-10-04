@@ -24,15 +24,17 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-  char lock_name[7];
+  // char lock_name[7];
 } kmem[NCPU];
 
 void
 kinit()
 {
+  // char lock_name[7];
   for(int i = 0; i < NCPU; i++) {
-    snprintf(kmem[i].lock_name, sizeof(kmem[i].lock_name), "kmem_%d", i);
-    initlock(&kmem[i].lock, kmem[i].lock_name);
+    // snprintf(lock_name, sizeof(lock_name), "kmem_%d", i);
+    // initlock(&kmem[i].lock, lock_name);
+    initlock(&kmem[i].lock, "kmem");
   }
   freerange(end, (void*)PHYSTOP);      
 }
@@ -109,7 +111,7 @@ kalloc(void)
     
     // FIXME: 目前只是顺序访问，没有使用tricks
     for(int i = 0; i < NCPU; i++) {
-      free_cpu = (cpu_id + i) % NCPU;
+      free_cpu = (cpu_id + i) % NCPU; // lend starting from the right one until a cycle forms
       if(kmem[free_cpu].freelist) {
         acquire(&kmem[free_cpu].lock);
         r = kmem[free_cpu].freelist;
@@ -119,7 +121,7 @@ kalloc(void)
       }
     }
   }
-  
+  // release(&kmem[cpu_id].lock);
   pop_off();
 
   if(r)
