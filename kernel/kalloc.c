@@ -15,7 +15,6 @@ void freerange(void *pa_start, void *pa_end);
 
 extern char end[]; // first address after kernel.
                    // defined by kernel.ld.
-                   // FIXME: why char* ???
 
 struct run {
   struct run *next;
@@ -24,16 +23,12 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
-  // char lock_name[7];
 } kmem[NCPU];
 
 void
 kinit()
 {
-  // char lock_name[7];
   for(int i = 0; i < NCPU; i++) {
-    // snprintf(lock_name, sizeof(lock_name), "kmem_%d", i);
-    // initlock(&kmem[i].lock, lock_name);
     initlock(&kmem[i].lock, "kmem");
   }
   freerange(end, (void*)PHYSTOP);      
@@ -65,17 +60,18 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
-  push_off();
+  // The function cpuid returns the current core number, 
+  // but it's only safe to call it and use its result when interrupts are turned off. 
+  // Use push_off() and pop_off() to turn interrupts off and on.
+
+  push_off(); // turn interrupts off
   int cpu_id = cpuid();
-  // pop_off();
+  pop_off();  // turn interrupts on
 
   acquire(&kmem[cpu_id].lock);
   r->next = kmem[cpu_id].freelist;
   kmem[cpu_id].freelist = r;
   release(&kmem[cpu_id].lock);
-
-  pop_off();
-
 }
 
 // Allocate one 4096-byte page of physical memory.
@@ -86,43 +82,38 @@ kalloc(void)
 {
   struct run *r;
 
-  // NOTE: The function cpuid returns the current core number, but it's only safe to call it and use its result when interrupts are turned off. You should use push_off() and pop_off() to turn interrupts off and on.
-
   push_off();
   int cpu_id = cpuid();
-  // pop_off();
-
-  // FIXME: 当2个cpu试图互相借用时，可能会出现死锁 -- 当两个锁的调用和释放有交叉时，注死锁的问题
-  // FIXME: 释放自己的锁再去偷页，把偷的页头指针保存起来，再申请本cpu的锁来更新空闲链表？
+  pop_off();
 
   acquire(&kmem[cpu_id].lock);
   r = kmem[cpu_id].freelist;
-
-  if(r) {
+  if(r)
     kmem[cpu_id].freelist = r->next;
-    release(&kmem[cpu_id].lock);
+  release(&kmem[cpu_id].lock);
 
-  } else {
-    // current cpu has no freelist, so lend from other cpu
+  // lend from other CPU
+  if (!r) {
+    for (int i = 0; i < NCPU; i++) {
 
-    release(&kmem[cpu_id].lock);
+      if (i == cpu_id) continue; // avoid deadlock
 
-    int free_cpu;
-    
-    // FIXME: 目前只是顺序访问，没有使用tricks
-    for(int i = 0; i < NCPU; i++) {
-      free_cpu = (cpu_id + i) % NCPU; // lend starting from the right one until a cycle forms
-      if(kmem[free_cpu].freelist) {
-        acquire(&kmem[free_cpu].lock);
-        r = kmem[free_cpu].freelist;
-        kmem[free_cpu].freelist = r->next;
-        release(&kmem[free_cpu].lock);
+      // If the execution sequence (first lock, then check) is reversed, 
+      // then there is possibility that the process has a free page when check,
+      // but the freelist is empty when lock.
+      // Cause other threads of this process can use this last one free page between check and lock.
+
+      acquire(&kmem[i].lock);  // first lock
+      r = kmem[i].freelist;    
+      if (r) {                 // then check 
+        kmem[i].freelist = r->next;
+        release(&kmem[i].lock);
         break;
       }
+      release(&kmem[i].lock);
+
     }
   }
-  // release(&kmem[cpu_id].lock);
-  pop_off();
 
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
