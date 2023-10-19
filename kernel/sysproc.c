@@ -92,8 +92,28 @@ sys_uptime(void)
   return xticks;
 }
 
+// retrieve the number of active processes 
 uint64
-sys_new_syscall(void)
+sys_procnum(void)
 {
-  //* TODO: Your implementation here.
+  // Collect the number of active processes
+  int count = 0; 
+  for (int i = 0; i < NPROC; i++) {
+    // There is no need to lock proc[i] because we are only reading data, not performing write operations
+    if (proc[i].state != UNUSED) {
+      count++;  
+    }
+  }
+
+  // Get the user-supplied memory address from the first argument, here is the address of num
+  uint64 addr;        
+  argaddr(0, &addr);  
+
+  // Copy the count result from kernel to user space
+  struct proc *p = myproc();  
+  if (copyout(p->pagetable, addr, (char*)&count, sizeof(count)) < 0) {
+    return -1;  
+  }
+
+  return 0; 
 }
