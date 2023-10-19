@@ -63,6 +63,11 @@ void            ramdiskrw(struct buf*);
 void*           kalloc(void);
 void            kfree(void *);
 void            kinit(void);
+uint64          count_free_mem(void);
+// extern struct {
+//   struct spinlock lock;
+//   struct run *freelist;
+// }kmem;
 
 // log.c
 void            initlog(int, struct superblock*);

@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "param.h": "c"
+        "param.h": "c",
+        "memlayout.h": "c",
+        "spinlock.h": "c"
     }
 }

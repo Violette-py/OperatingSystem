@@ -117,3 +117,21 @@ sys_procnum(void)
 
   return 0; 
 }
+
+uint64
+sys_freemem(void) 
+{
+  // Get the user-supplied memory address from the first argument, here is the address of num
+  uint64 addr;        
+  argaddr(0, &addr);  
+
+  int free_bytes = count_free_mem();
+
+  // Copy the count result from kernel to user space
+  struct proc *p = myproc();  
+  if (copyout(p->pagetable, addr, (char*)&free_bytes, sizeof(free_bytes)) < 0) {
+    return -1;  
+  }
+
+  return 0; 
+}

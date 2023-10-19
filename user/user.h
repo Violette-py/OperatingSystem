@@ -23,6 +23,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int procnum(int*);
+int freemem(int*);
 // int procnum(void);  // void放在参数列表中，表示函数不接受任何参数
 
 // ulib.c

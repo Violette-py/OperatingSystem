@@ -189,7 +189,7 @@ UPROGS=\
 	$U/_wc\
 	$U/_zombie\
 	$U/_procnum\
-	# $U/_freemem\
+	$U/_freemem\
 
 
 
