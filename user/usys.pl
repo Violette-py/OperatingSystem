@@ -38,3 +38,4 @@ entry("sleep");
 entry("uptime");
 entry("procnum");
 entry("freemem");
+entry("trace");

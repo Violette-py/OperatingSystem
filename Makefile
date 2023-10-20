@@ -190,6 +190,7 @@ UPROGS=\
 	$U/_zombie\
 	$U/_procnum\
 	$U/_freemem\
+	$U/_trace\
 
 
 

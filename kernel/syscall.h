@@ -22,3 +22,4 @@
 #define SYS_close  21
 #define SYS_procnum 22
 #define SYS_freemem 23
+#define SYS_trace   24

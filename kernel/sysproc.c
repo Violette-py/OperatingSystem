@@ -96,7 +96,11 @@ sys_uptime(void)
 uint64
 sys_procnum(void)
 {
-  // Collect the number of active processes
+  // Get the user-supplied memory address from the first argument, here is the address of num
+  uint64 addr;        
+  argaddr(0, &addr);  
+
+  // Count total number of active processes
   int count = 0; 
   for (int i = 0; i < NPROC; i++) {
     // There is no need to lock proc[i] because we are only reading data, not performing write operations
@@ -104,10 +108,6 @@ sys_procnum(void)
       count++;  
     }
   }
-
-  // Get the user-supplied memory address from the first argument, here is the address of num
-  uint64 addr;        
-  argaddr(0, &addr);  
 
   // Copy the count result from kernel to user space
   struct proc *p = myproc();  
@@ -125,7 +125,8 @@ sys_freemem(void)
   uint64 addr;        
   argaddr(0, &addr);  
 
-  int free_bytes = count_free_mem();
+  // Count total free memory bytes
+  int free_bytes = count_free_mem(); // declared in kernel/defs.h
 
   // Copy the count result from kernel to user space
   struct proc *p = myproc();  
@@ -135,3 +136,13 @@ sys_freemem(void)
 
   return 0; 
 }
+
+uint64
+sys_trace(void)
+ {
+  int user_mask;
+  argint(0, &user_mask);
+    
+  myproc()->mask = user_mask;
+  return 0;
+ }
