@@ -23,6 +23,8 @@ struct {
   struct run *freelist;
 } kmem;
 
+// 在内核启动时对物理内存分配器进行初始化，只有经过kinit之后内存管理器才有内存可以分配
+// 在kernel/main.c中，kinit的调用在打开页表机制之前，所以这里的虚拟地址也就等于物理地址
 void
 kinit()
 {
@@ -34,7 +36,11 @@ void
 freerange(void *pa_start, void *pa_end)
 {
   char *p;
+
+  // 向上对齐，防止释放有用的页面
   p = (char*)PGROUNDUP((uint64)pa_start);
+
+  // 注意终止条件p + PGSIZE <= pa_end，这本质上也加入了保护措施，防止释放有用页
   for(; p + PGSIZE <= (char*)pa_end; p += PGSIZE)
     kfree(p);
 }
@@ -56,6 +62,7 @@ kfree(void *pa)
 
   r = (struct run*)pa;
 
+  // 头插法，将回收的页作为链表第一项插入到空闲链表中
   acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;

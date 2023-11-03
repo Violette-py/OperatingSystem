@@ -50,6 +50,7 @@
 // from physical address 0x80000000 to PHYSTOP.
 #define KERNBASE 0x80000000L
 #define PHYSTOP (KERNBASE + 128*1024*1024)
+// 一个操作系统应该是从硬件信息中直接获悉系统的内存，但是xv6直接假定内存只有128MB
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.
