@@ -74,7 +74,37 @@ sys_sleep(void)
 int
 sys_pgaccess(void)
 {
-  // lab pgtbl: your code here.
+  // TODO: lab pgtbl: your code here.
+
+  // 从用户进程获取系统调用参数
+
+  uint64 base, maskVA;
+  argaddr(0, &base); // 被检查的第一个用户页的起始虚拟地址
+  argaddr(2, &maskVA); // 存放的结果
+  
+  int len;
+  argint(1, &len);   // 被检查页面的数量
+  if(len > MAXSCAN)
+    return -1;
+
+  struct proc *p = myproc();
+  pte_t *pte;
+  uint64 va = base;
+  uint64 mask = 0;
+
+  for(uint64 i = 0; i < len; i++, va += PGSIZE){
+    if((pte = walk(p->pagetable, va, 0)) == 0)
+      panic("pgaccess: walk failed");
+    
+    if(*pte & PTE_A){
+      mask |= 1 << i; // 设置mask对应位
+      *pte &= ~PTE_A; // 将PTE_A清空
+    }
+  }
+
+  if(copyout(p->pagetable, maskVA, (char*)&mask, sizeof(mask)) < 0)
+    return -1;
+
   return 0;
 }
 #endif
