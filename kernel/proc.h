@@ -104,4 +104,7 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // NOTE: 加入一个指向加速页面的指针
+  struct usyscall* usyscall;    
 };

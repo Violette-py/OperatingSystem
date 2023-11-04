@@ -125,6 +125,8 @@ found:
   p->pid = allocpid();
   p->state = USED;
 
+  // NOTE: trampoline代码作为内核代码的一部分，不用额外分配空间，只需要建立映射关系
+
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
     freeproc(p);
@@ -132,7 +134,17 @@ found:
     return 0;
   }
 
+  // NOTE: 分配一个只读的、用于加速系统调用的页面
+  if((p->usyscall = (struct usyscall *)kalloc()) == 0){
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  // NOTE: 初始化保存当前进程的pid
+  p->usyscall->pid = p->pid;
+
   // An empty user page table.
+  // NOTE: 为当前进程申请一个页表页，并将trapframe和trampoline页面映射进去（还要添加加速页面的映射关系）
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
     freeproc(p);
@@ -155,12 +167,24 @@ found:
 static void
 freeproc(struct proc *p)
 {
+
+  // 要单独释放trapframe（和加速页），是因为它们位于地址空间的最高处，与下面已经使用的地址空间是分离的
+  // 不用在此释放trampoline，因为这部分内存由内核管理
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
+
+  // NOTE: 释放加速页
+  if(p->usyscall)
+    kfree((void*)p->usyscall);
+  p->usyscall = 0;
+
+  // 先解除trampoline和trapframe的映射关系（还要释放加速页面的映射关系）
+  // 并最终调用uvmfree释放一般的页表和物理内存
   if(p->pagetable)
     proc_freepagetable(p->pagetable, p->sz);
   p->pagetable = 0;
+
   p->sz = 0;
   p->pid = 0;
   p->parent = 0;
@@ -197,7 +221,16 @@ proc_pagetable(struct proc *p)
   // trampoline.S.
   if(mappages(pagetable, TRAPFRAME, PGSIZE,
               (uint64)(p->trapframe), PTE_R | PTE_W) < 0){
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0); // 该内存时内核专用，在用户程序执行期间需保持有效
+    uvmfree(pagetable, 0); // sz=0，会直接进入freewalk，释放页表页
+    return 0;
+  }
+
+  // NOTE: 添加加速页面的映射关系
+  if(mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->usyscall), PTE_U | PTE_R) < 0){
     uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0);
     uvmfree(pagetable, 0);
     return 0;
   }
@@ -210,8 +243,12 @@ proc_pagetable(struct proc *p)
 void
 proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
+  // 单独解除映射关系，是因为它们和连续的地址空间相分离
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, USYSCALL, 1, 0); // NOTE: 解除映射关系
+
+  // 连续空间使用uvmfree一套解决（解除映射关系+释放物理内存）
   uvmfree(pagetable, sz);
 }
 
