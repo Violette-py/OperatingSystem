@@ -501,3 +501,32 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }
+
+void level_vmprint(pagetable_t pagetable, int level)
+{
+  for(int i = 0; i < 512; i++){
+    pte_t pte = pagetable[i];
+    if(pte & PTE_V){
+
+      // 打印本级PTE内容
+      for(int j = 0; j <= level; j++){
+        printf("..");
+        if(j < level)
+          printf(" ");
+      }
+      uint64 child = PTE2PA(pte);
+      printf("%d: pte %p pa %p\n", i, pte, child);
+
+      // 该PTE有效，且读位、写位、可执行位均为0，说明不是一个叶子PTE，需要递归打印其所有孩子PTE
+      if((pte & (PTE_R|PTE_W|PTE_X)) == 0){
+        level_vmprint((pagetable_t)child, level+1);
+      }
+    }
+  }
+}
+
+void vmprint(pagetable_t pagetable)
+{
+  printf("page table %p\n", pagetable); // %p把参数解释为指针，并以十六进制的格式打印出指针的值
+  level_vmprint(pagetable, 0); 
+}
