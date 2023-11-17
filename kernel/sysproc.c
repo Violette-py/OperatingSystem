@@ -48,6 +48,7 @@ sys_sbrk(void)
   return addr;
 }
 
+// NOTE: call backtrace()
 uint64
 sys_sleep(void)
 {
@@ -67,6 +68,9 @@ sys_sleep(void)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
+
+  backtrace();  // NOTE: call backtrace here to test
+
   return 0;
 }
 

@@ -53,9 +53,11 @@ usertrap(void)
   if(r_scause() == 8){
     // system call
 
+    // 若该进程被标记为需要killed，则调用exit来终止
     if(killed(p))
       exit(-1);
 
+    // pc of user program is stored in sepc
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
     p->trapframe->epc += 4;
@@ -78,7 +80,7 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
-    yield();
+    yield(); // 调用yield函数来释放CPU，允许其他进程运行
 
   usertrapret();
 }
@@ -96,6 +98,9 @@ usertrapret(void)
   // we're back in user space, where usertrap() is correct.
   intr_off();
 
+  // 以下步骤都是为了下一次用户空间陷入trap时做的准备
+
+  // 将stvec设置为uservec
   // send syscalls, interrupts, and exceptions to uservec in trampoline.S
   uint64 trampoline_uservec = TRAMPOLINE + (uservec - trampoline);
   w_stvec(trampoline_uservec);

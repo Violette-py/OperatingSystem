@@ -76,6 +76,8 @@ uservec:
         ld sp, 8(a0)
 
         # make tp hold the current hartid, from p->trapframe->kernel_hartid
+        # hartid指明当前运行在多核处理器的哪个核上（硬件层面）
+        # 每个进程获取当前的cpuid就是通过这个寄存器
         ld tp, 32(a0)
 
         # load the address of usertrap(), from p->trapframe->kernel_trap
@@ -106,8 +108,8 @@ userret:
         # a0: user page table, for satp.
 
         # switch to the user page table.
-        sfence.vma zero, zero
-        csrw satp, a0
+        sfence.vma zero, zero  // 清空页表缓存
+        csrw satp, a0  // 在usertrapret最后要跳转到这里时，把之前保存的用户的satp作为第一个参数传到这里
         sfence.vma zero, zero
 
         li a0, TRAPFRAME
@@ -145,7 +147,7 @@ userret:
         ld t6, 280(a0)
 
 	# restore user a0
-        ld a0, 112(a0)
+        ld a0, 112(a0)  // trapframe中的a0
         
         # return to user mode and user pc.
         # usertrapret() set up sstatus and sepc.

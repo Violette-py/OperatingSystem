@@ -122,6 +122,7 @@ panic(char *s)
   printf("panic: ");
   printf(s);
   printf("\n");
+  backtrace();  // NOTE: add backtrace to print the return address in stack frame recursively
   panicked = 1; // freeze uart output from other CPUs
   for(;;)
     ;
@@ -132,4 +133,20 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+// NOTE: 从调用backtrace()的函数开始，递归读取每个函数调用栈，依次打印返回地址
+void
+backtrace(void)
+{ 
+  printf("backtrace:\n");
+  uint64 fp = r_fp();
+  uint64 top = PGROUNDUP(fp);
+
+  // 最后一个调用栈（=top）不需要打印，因为这是页表第一个栈帧，此时执行的代码并不是通过常规函数调用进入，因此此时保存的ra是无意义的
+  while(fp < top){
+    uint64 ra = *(uint64*)(fp - 8);
+    printf("%p\n", ra);
+    fp = *(uint64*)(fp - 16); // fp-16处存储着上一个stack frame的顶部地址
+  }
 }

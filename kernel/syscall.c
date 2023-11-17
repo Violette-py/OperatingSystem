@@ -129,16 +129,16 @@ static uint64 (*syscalls[])(void) = {
 };
 
 void
-syscall(void)
+syscall(void)  // 获取trampoline代码保存在trapframe中的a7（从用户寄存器的a7->trapframe的a7）
 {
   int num;
   struct proc *p = myproc();
 
-  num = p->trapframe->a7;
+  num = p->trapframe->a7;  // a7中存放了系统调用编号，在user/usys.pl中可以看出
   if(num > 0 && num < NELEM(syscalls) && syscalls[num]) {
     // Use num to lookup the system call function for num, call it,
     // and store its return value in p->trapframe->a0
-    p->trapframe->a0 = syscalls[num]();
+    p->trapframe->a0 = syscalls[num]();  // 后续会将trapframe中的a0->用户寄存器的a0，表示write系统调用的返回值
   } else {
     printf("%d %s: unknown sys call %d\n",
             p->pid, p->name, num);
