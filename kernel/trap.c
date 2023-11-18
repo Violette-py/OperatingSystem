@@ -69,6 +69,28 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+
+    // NOTE: alarm
+    // timer interrupt: every tick, the hardware clock forces an interrupt
+    if(which_dev == 2 && p->interval != 0){ // p->interval == 0 表示停止sigalarm的调用过程
+      p->passedTicks++;
+
+      // p->in_handler == 0 表示没有处在alarm的流程中
+      // 如果一个时钟到期的时候已经有一个时钟处理函数正在运行，则会推迟到原处理函数运行完成后的下一个 tick 才触发这次时钟
+      if (p->in_handler == 0 && p->passedTicks >= p->interval){
+
+        // 把发生alarm时的trapframe完整保存下来，便于之后继续执行原有进程
+        memmove(p->alarm_trapframe, p->trapframe, sizeof(struct trapframe));   
+        // *p->alarm_trapframe = *p->trapframe;
+
+        p->trapframe->epc = (uint64)p->handler;
+        // p->handler();  // 不能直接调用，因为这是用户空间虚拟地址，而此时已经切换到内核页表了
+
+        p->passedTicks = 0;
+        p->in_handler = 1; // 当前进程处于alarm调用状态
+      }
+    }
+
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());

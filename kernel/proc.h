@@ -104,4 +104,11 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+
+  // 在allocproc函数中初始化以下字段
+  int interval;       // 时间间隔
+  void (*handler)();  // 指向处理函数的指针（函数指针，为指针赋值为某函数地址后，可通过handler()调用对应的处理函数）
+  int passedTicks;    // 上次调用sigalarm后经过的时间间隔
+  int in_handler;     // 防止重复进入handler程序
+  struct trapframe *alarm_trapframe; 
 };
