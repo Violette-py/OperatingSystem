@@ -5,7 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
-
+// test
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
