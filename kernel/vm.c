@@ -153,9 +153,14 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   for(;;){
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
-    if(*pte & PTE_V)
-      panic("mappages: remap");
+    
+    if(*pte & PTE_V){
+    // if((*pte & PTE_V) && !(*pte & PTE_COW)){
+      panic("mappages: remap");  // FIXME
+    }
     *pte = PA2PTE(pa) | perm | PTE_V;
+    // if(pa >= KERNBASE)
+    //   inc_refcnt((void*)pa);
     if(a == last)
       break;
     a += PGSIZE;
@@ -308,22 +313,39 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
+  // char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
+    if(i >= MAXVA)
+      return -1;
     if((pte = walk(old, i, 0)) == 0)
       panic("uvmcopy: pte should exist");
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
-    flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
-      goto err;
+    
+    // 以下两步需要对父、子进程同时实现
+    // 如果该页本身就不可写，那么对子进程也不可写
+    if(*pte & PTE_W){
+      *pte &= ~PTE_W;   // 清空PTE_W
+      *pte |= PTE_COW;  // 标记对应的页面为COW页面
     }
+
+    flags = PTE_FLAGS(*pte);
+
+    // 将父节点的物理页映射到子节点，而非分配新页
+    if(mappages(new, i, PGSIZE, pa, flags) != 0) 
+      goto err;
+    inc_refcnt((void*)pa); 
+
+    // OLD CODE
+    // if((mem = kalloc()) == 0)
+    //   goto err;
+    // memmove(mem, (char*)pa, PGSIZE);
+    // if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
+    //   kfree(mem);
+    //   goto err;
+    // }
   }
   return 0;
 
@@ -355,9 +377,21 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    // if(cowcopy(pagetable, va0) < 0)
+    //   return -1;
     pa0 = walkaddr(pagetable, va0);
+    // pa0 = cowcopy(pagetable, va0);  // FIXME
+
+    // 如果是cow page
+    if(iscowpage(pagetable, va0)){
+      if(cowcopy(pagetable, va0) < 0)
+        return -1;
+      pa0 = walkaddr(pagetable, va0);
+    }
+
     if(pa0 == 0)
-      return -1;
+      return -1;    
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -436,4 +470,83 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+uint64          
+cowcopy(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+  uint64 pa;
+  char *mem;
+  uint flags;
+
+  va = PGROUNDDOWN(va);
+  if(va >= MAXVA)  // FIXME: 必须是>=
+    return -1;
+
+  if((pte = walk(pagetable, va, 0)) == 0)
+    return -1;
+    // panic("cowcopy: pte should exist");
+  if((*pte & PTE_V) == 0)
+    return -1;
+    // panic("cowcpoy: page not present");
+  if((*pte & PTE_U) == 0)
+    return -1;
+  if((*pte & PTE_COW) == 0) // 不是COW页面
+    return -1;
+    // panic("cowcopy: not cow page");
+
+  pa = PTE2PA(*pte);
+
+  // 若没有写标志位
+  if((*pte & PTE_W) == 0){
+
+    if((*pte & PTE_COW) == 0) // 不是COW页面
+      return -1;
+
+    // 分配新物理页
+    if((mem = kalloc()) == 0)
+      return -1;
+
+    // 拷贝旧页面内容
+    memmove(mem, (char*)pa, PGSIZE);
+
+    // 更新标志位：清除COW位且设置写位
+    flags = ((PTE_FLAGS(*pte) & (~PTE_COW)) | PTE_W);
+
+    // 取消原映射
+    uvmunmap(pagetable, PGROUNDDOWN(va), 1, 1);  // 否则会有remap报错
+    // 注意这里设置了do_free位，会进入kfree使物理页面的引用-1
+
+    // 更新新映射
+    // flags = PTE_FLAGS(*pte);
+    if(mappages(pagetable, PGROUNDDOWN(va), PGSIZE, (uint64)mem, flags) != 0){
+      kfree(mem);
+      return -1;
+    }
+
+    // FIXME: 这里只修改了子进程的权限吗？
+    // *pte &= ~PTE_COW; // 清除PTE_COW
+    // *pte |= PTE_W;    // 设置PTE_W
+    // *pte &= ~PTE_V;   // FIXME: avoid remap
+
+    return (uint64)mem; // cow情况下返回新的物理地址
+
+  }
+
+  return pa;
+}
+
+int
+iscowpage(pagetable_t pagetable, uint64 va){
+  va = PGROUNDDOWN((uint64)va);
+  if(va >= MAXVA)  // 要在walk之前
+    return 0;
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    return 0;
+  if((*pte & PTE_COW) && (*pte & PTE_V))
+    return 1;
+  else
+    return 0;
 }

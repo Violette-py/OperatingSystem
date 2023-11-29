@@ -65,6 +65,19 @@ usertrap(void)
     intr_on();
 
     syscall();
+  // } else if(r_scause() == 15){  // NOTE: COW只在要写页面时才会出错
+  } else if(r_scause() == 15 && iscowpage(p->pagetable, r_stval())){
+  // } else if((r_scause() == 15 || r_scause() == 13) && iscowpage(p->pagetable ,r_stval())){
+    // store page fault
+
+    uint64 va = r_stval(); // 引发page fault的虚拟地址
+
+    if(cowcopy(p->pagetable, va) <= 0){ // 发生COW页故障且没有内存，则杀掉进程
+      setkilled(p);
+    }
+
+    // epc不用+4，因为要重新执行出现page fault的指令
+
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
