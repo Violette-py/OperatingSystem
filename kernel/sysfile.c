@@ -242,6 +242,7 @@ bad:
   return -1;
 }
 
+// NOTE: 创建新的文件或目录
 static struct inode*
 create(char *path, short type, short major, short minor)
 {
@@ -333,6 +334,28 @@ sys_open(void)
       end_op();
       return -1;
     }
+
+    // NOTE: 遇到软链接时可以不断跟随
+    if(!(omode & O_NOFOLLOW)){
+      int i;
+      for(i = 0; i < 10 && ip->type == T_SYMLINK; i++){ 
+        if(readi(ip, 0, (uint64)path, 0, MAXPATH) == 0)
+          panic("open: readi");
+        iunlockput(ip);
+        if((ip = namei(path)) == 0){
+          end_op();
+          return -1;
+        }
+        ilock(ip);
+      }
+      // NOTE: 最大递归深度为10，以防止软链接形成一个圈
+      if(i == 10){
+        iunlock(ip);
+        end_op();
+        return -1;
+      }
+    }
+
   }
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
@@ -501,5 +524,40 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64 
+sys_symlink(void)
+{
+  char target[MAXPATH], path[MAXPATH];
+  struct inode *dp, *ip;  // ip指向target，dp指向path的父目录
+
+  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+
+  begin_op();
+
+  if((ip = namei(target)) != 0){
+    ilock(ip);
+    if(ip->type == T_DIR){  // 本lab中不需要处理target是一个目录文件的情况
+      iunlockput(ip);
+      end_op();
+      return -1;
+    }
+    iunlockput(ip);
+  }
+
+  if((dp = create(path, T_SYMLINK, 0, 0)) == 0){
+    end_op();
+    return -1;
+  }
+
+  // ilock(dp);  // NOTE: 不能加这句，加了会卡住
+  if(writei(dp, 0, (uint64)target, 0, MAXPATH) != MAXPATH)  // 把软链接存在inode的data block中
+    panic("symlink: writei");
+  iunlockput(dp);
+
+  end_op();
   return 0;
 }
