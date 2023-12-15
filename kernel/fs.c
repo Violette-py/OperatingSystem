@@ -379,6 +379,7 @@ iunlockput(struct inode *ip)
 // Return the disk block address of the nth block in inode ip.
 // If there is no such block, bmap allocates one.
 // returns 0 if out of disk space.
+// NOTE: 根据文件的逻辑块号bn，找到实际的磁盘块地址，并在需要时分配新的磁盘块
 static uint
 bmap(struct inode *ip, uint bn)
 {
@@ -405,11 +406,55 @@ bmap(struct inode *ip, uint bn)
       ip->addrs[NDIRECT] = addr;
     }
     bp = bread(ip->dev, addr);
-    a = (uint*)bp->data;
+    a = (uint*)bp->data; // 拿到的indirect块的内容，其中存放着256个块地址
     if((addr = a[bn]) == 0){
       addr = balloc(ip->dev);
       if(addr){
-        a[bn] = addr;
+        a[bn] = addr;  // 上面bp->data被强转成uint*类型，故是以uint4字节为单位寻址，而非按照uchar*的data进行寻址
+        log_write(bp);
+      }
+    }
+    brelse(bp);
+    return addr;
+  }
+
+  /* TODO */
+
+  bn -= NINDIRECT;
+
+  if(bn < NDINDIRECT){
+    // NOTE: 加载第0层的块，必要时分配
+    if((addr = ip->addrs[NDIRECT+1]) == 0){
+      addr = balloc(ip->dev);
+      if(addr == 0)
+        return 0;
+      ip->addrs[NDIRECT+1] = addr;
+    }
+
+    uint idx1 = bn / (BSIZE / sizeof(uint));
+    uint idx2 = bn % (BSIZE / sizeof(uint));
+
+    // NOTE: 加载第1层的块
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if((addr = a[idx1]) == 0){
+      addr = balloc(ip->dev);
+      if(addr){
+        a[idx1] = addr;
+        log_write(bp);
+      } else{
+        return 0;  
+      }
+    }
+    brelse(bp);
+
+    // NOTE: 加载第2层的块
+    bp = bread(ip->dev, addr);
+    a = (uint*)bp->data;
+    if((addr = a[idx2]) == 0){
+      addr = balloc(ip->dev);
+      if(addr){
+        a[idx2] = addr;
         log_write(bp);
       }
     }
@@ -446,6 +491,31 @@ itrunc(struct inode *ip)
     brelse(bp);
     bfree(ip->dev, ip->addrs[NDIRECT]);
     ip->addrs[NDIRECT] = 0;
+  }
+
+  /* TODO */
+  int k;
+  struct buf *bp2;
+  uint *b;
+  if(ip->addrs[NDIRECT+1]){
+    bp = bread(ip->dev, ip->addrs[NDIRECT+1]);
+    a = (uint*)bp->data;
+    for(j = 0; j < BSIZE / sizeof(uint); j++){
+      if(a[j]){
+        bp2 = bread(ip->dev, a[j]);
+        b = (uint*)bp2->data;
+        for(k = 0; k < BSIZE / sizeof(uint); k++){
+            if(b[k])
+              bfree(ip->dev, b[k]);
+        }
+        brelse(bp2);
+        bfree(ip->dev, a[j]);
+        a[j] = 0;
+      }
+    }
+    brelse(bp);
+    bfree(ip->dev, ip->addrs[NDIRECT+1]);
+    ip->addrs[NDIRECT+1] = 0;
   }
 
   ip->size = 0;

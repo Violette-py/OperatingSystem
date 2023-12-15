@@ -55,6 +55,7 @@ binit(void)
 // Look through buffer cache for block on device dev.
 // If not found, allocate a buffer.
 // In either case, return locked buffer.
+// 从buffer cache（缓冲区）获取一个指定设备号和块号的buffer（缓冲块）
 static struct buf*
 bget(uint dev, uint blockno)
 {
